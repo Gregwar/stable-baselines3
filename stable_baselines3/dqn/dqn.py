@@ -56,7 +56,7 @@ class DQN(OffPolicyAlgorithm):
     :param seed: Seed for the pseudo random generators
     :param device: Device (cpu, cuda, ...) on which the code should be run.
         Setting it to auto, the code will be run on the GPU if possible.
-    :param double: bool whether use double DQN mode
+    :param double: bool enables the Double DQN update (https://arxiv.org/abs/1509.06461)
     :param _init_setup_model: Whether or not to build the network at the creation of the instance
     """
 
