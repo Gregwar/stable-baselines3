@@ -56,6 +56,7 @@ class DQN(OffPolicyAlgorithm):
     :param seed: Seed for the pseudo random generators
     :param device: Device (cpu, cuda, ...) on which the code should be run.
         Setting it to auto, the code will be run on the GPU if possible.
+    :param double: bool whether use double DQN mode
     :param _init_setup_model: Whether or not to build the network at the creation of the instance
     """
 
@@ -85,6 +86,7 @@ class DQN(OffPolicyAlgorithm):
         verbose: int = 0,
         seed: Optional[int] = None,
         device: Union[th.device, str] = "auto",
+        double: bool = False,
         _init_setup_model: bool = True,
     ):
 
@@ -127,6 +129,7 @@ class DQN(OffPolicyAlgorithm):
         # Linear schedule will be defined in `_setup_model()`
         self.exploration_schedule = None
         self.q_net, self.q_net_target = None, None
+        self.double = double
 
         if _init_setup_model:
             self._setup_model()
@@ -180,10 +183,19 @@ class DQN(OffPolicyAlgorithm):
             replay_data = self.replay_buffer.sample(batch_size, env=self._vec_normalize_env)
 
             with th.no_grad():
-                # Compute the next Q-values using the target network
-                next_q_values = self.q_net_target(replay_data.next_observations)
-                # Follow greedy policy: use the one with the highest value
-                next_q_values, _ = next_q_values.max(dim=1)
+                if self.double:
+                    # Compute the next best actions from live network
+                    best_next_actions = self.q_net(replay_data.next_observations).argmax(dim=1)
+                    best_next_actions = best_next_actions.view(best_next_actions.numel(), 1)
+
+                    # Use the value of those actions given by the target network
+                    next_q_values = self.q_net_target(replay_data.next_observations)
+                    next_q_values = th.gather(next_q_values, dim=1, index=best_next_actions.long())
+                else:
+                    # Compute the next Q-values using the target network
+                    next_q_values = self.q_net_target(replay_data.next_observations)
+                    # Follow greedy policy: use the one with the highest value
+                    next_q_values, _ = next_q_values.max(dim=1)
                 # Avoid potential broadcast issue
                 next_q_values = next_q_values.reshape(-1, 1)
                 # 1-step TD target
