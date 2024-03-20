@@ -115,6 +115,7 @@ class SAC(OffPolicyAlgorithm):
         verbose: int = 0,
         seed: Optional[int] = None,
         device: Union[th.device, str] = "auto",
+        variable_time: bool = False,
         _init_setup_model: bool = True,
     ):
         super().__init__(
@@ -152,6 +153,7 @@ class SAC(OffPolicyAlgorithm):
         self.ent_coef = ent_coef
         self.target_update_interval = target_update_interval
         self.ent_coef_optimizer: Optional[th.optim.Adam] = None
+        self.variable_time = variable_time
 
         if _init_setup_model:
             self._setup_model()
@@ -251,7 +253,14 @@ class SAC(OffPolicyAlgorithm):
                 # add entropy term
                 next_q_values = next_q_values - ent_coef * next_log_prob.reshape(-1, 1)
                 # td error + entropy term
-                target_q_values = replay_data.rewards + (1 - replay_data.dones) * self.gamma * next_q_values
+                gamma = self.gamma
+                if self.variable_time:
+                    ratio_low = self.env.action_space.low[0]
+                    ratio_high = self.env.action_space.high[0]
+                    time_ratio = ratio_low + (0.5 * (actions_pi[:, 0] + 1.0) * (ratio_high - ratio_low))
+                    gamma = (self.gamma**time_ratio).unsqueeze(-1)
+                    
+                target_q_values = replay_data.rewards + gamma * (1 - replay_data.dones) * next_q_values
 
             # Get current Q-values estimates for each critic network
             # using action from the replay buffer
