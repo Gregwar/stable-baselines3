@@ -100,6 +100,9 @@ class Monitor(gym.Wrapper[ObsType, ActType, ObsType, ActType]):
             ep_info = {"r": round(ep_rew, 6), "l": ep_len, "t": round(time.time() - self.t_start, 6)}
             for key in self.info_keywords:
                 ep_info[key] = info[key]
+            for key in info.keys():
+                if key.startswith("reward_"):
+                    ep_info[key] = info[key]
             self.episode_returns.append(ep_rew)
             self.episode_lengths.append(ep_len)
             self.episode_times.append(time.time() - self.t_start)
