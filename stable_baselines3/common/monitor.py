@@ -1,6 +1,7 @@
 __all__ = ["Monitor", "ResultsWriter", "get_monitor_files", "load_results"]
 
 import csv
+import numpy as np
 import json
 import os
 import time
@@ -74,6 +75,7 @@ class Monitor(gym.Wrapper[ObsType, ActType, ObsType, ActType]):
                 "wrap your env with Monitor(env, path, allow_early_resets=True)"
             )
         self.rewards = []
+        self.reward_terms = {}
         self.needs_reset = False
         for key in self.reset_keywords:
             value = kwargs.get(key)
@@ -93,6 +95,13 @@ class Monitor(gym.Wrapper[ObsType, ActType, ObsType, ActType]):
             raise RuntimeError("Tried to step environment that needs reset")
         observation, reward, terminated, truncated, info = self.env.step(action)
         self.rewards.append(float(reward))
+
+        for key in info.keys():
+                if key.startswith("reward_"):
+                    if key not in self.reward_terms:
+                        self.reward_terms[key] = []
+                    self.reward_terms[key].append(info[key])
+                    
         if terminated or truncated:
             self.needs_reset = True
             ep_rew = sum(self.rewards)
@@ -109,9 +118,9 @@ class Monitor(gym.Wrapper[ObsType, ActType, ObsType, ActType]):
 
             info["episode"] = ep_info
 
-            for key in info.keys():
-                if key.startswith("reward_"):
-                    info["episode"][key] = info[key]
+            for key, values in self.reward_terms.items():
+                info["episode"][key] = np.mean(values)
+
         self.total_steps += 1
         return observation, reward, terminated, truncated, info
 
